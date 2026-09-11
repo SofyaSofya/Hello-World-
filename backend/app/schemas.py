@@ -147,3 +147,56 @@ class ThreadResponse(BaseModel):
 class FamilyThreadsResponse(BaseModel):
     people: list[str]
     threads: list[ThreadResponse]
+
+
+# --- Persisted family tree (Step 3) -----------------------------------------
+
+
+class PersonCreate(BirthDataInput):
+    name: str = Field(..., min_length=1)
+
+
+class PersonResponse(BaseModel):
+    id: int
+    name: str
+    birth_date: date
+    birth_time: time | None
+    latitude: float
+    longitude: float
+    system: AstrologicalSystemLiteral
+    utc_offset_override: float | None
+    chart: ChartResponse
+
+
+RelationshipTypeLiteral = Literal["parent", "sibling", "spouse"]
+
+DEFAULT_GENERATION_OFFSET: dict[RelationshipTypeLiteral, int] = {
+    "parent": 1,
+    "sibling": 0,
+    "spouse": 0,
+}
+
+
+class RelationshipCreate(BaseModel):
+    person_a_id: int
+    person_b_id: int
+    relationship_type: RelationshipTypeLiteral = Field(
+        ..., description="'parent' means person_a is the parent of person_b."
+    )
+    generation_offset: int | None = Field(
+        default=None,
+        description="Generations person_b is below person_a. Defaults by "
+        "relationship_type if omitted (parent=1, sibling=0, spouse=0).",
+    )
+
+
+class RelationshipResponse(BaseModel):
+    id: int
+    person_a_id: int
+    person_b_id: int
+    relationship_type: RelationshipTypeLiteral
+    generation_offset: int
+
+
+class PersistedThreadsRequest(BaseModel):
+    include_generational_planets: bool = Field(default=False)
