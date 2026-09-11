@@ -3,17 +3,23 @@
 Uses the Moshier semi-analytical model (SEFLG_MOSEPH) rather than the
 high-precision JPL/Swiss ephemeris files, since Moshier needs no external data
 files and is accurate to ~1 arcsecond over years -3000..3000 -- plenty for
-astrology use. House system is Placidus.
+astrology use.
+
+House system: Placidus by default, auto-fallback to Whole Sign above ~66 degrees
+latitude (Placidus is mathematically undefined near the poles -- some dates/times
+fail even slightly below that, so a Placidus calculation error also triggers the
+same fallback). Vedic mode always uses Whole Sign, matching Jyotish convention.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
+from typing import Literal
 
 import swisseph as swe
 
-from app.timezone_utils import local_to_utc
+from app.timezone_utils import resolve_utc_datetime
 
 PLANETS: dict[str, int] = {
     "Sun": swe.SUN,
@@ -33,8 +39,10 @@ SIGNS = [
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 ]
 
-HOUSE_SYSTEM_CODE = b"P"  # Placidus
-HOUSE_SYSTEM_LABEL = "Placidus"
+AstrologicalSystem = Literal["western_tropical", "vedic"]
+
+HIGH_LATITUDE_THRESHOLD = 66.0  # degrees; Placidus is undefined near the poles
+DEFAULT_UNKNOWN_BIRTH_TIME = time(12, 0, 0)  # noon convention when time is unknown
 
 _CALC_FLAGS = swe.FLG_MOSEPH | swe.FLG_SPEED
 
@@ -65,6 +73,38 @@ def house_of_longitude(longitude: float, cusps: tuple[float, ...]) -> int:
     raise ChartCalculationError(f"Could not place longitude {longitude} into any house")
 
 
+def _compute_houses(
+    jd_ut: float, lat: float, lon: float, system: AstrologicalSystem
+) -> tuple[tuple[float, ...], tuple[float, ...], str, str | None]:
+    """Returns (cusps, ascmc, house_system_label, fallback_reason)."""
+    if system == "vedic":
+        cusps, ascmc = swe.houses(jd_ut, lat, lon, b"W")
+        return cusps, ascmc, "Whole Sign", None
+
+    if abs(lat) > HIGH_LATITUDE_THRESHOLD:
+        cusps, ascmc = swe.houses(jd_ut, lat, lon, b"W")
+        return (
+            cusps,
+            ascmc,
+            "Whole Sign",
+            f"Placidus is undefined above ~{HIGH_LATITUDE_THRESHOLD:g} degrees "
+            "latitude; used Whole Sign instead.",
+        )
+
+    try:
+        cusps, ascmc = swe.houses(jd_ut, lat, lon, b"P")
+        return cusps, ascmc, "Placidus", None
+    except swe.Error:
+        cusps, ascmc = swe.houses(jd_ut, lat, lon, b"W")
+        return (
+            cusps,
+            ascmc,
+            "Whole Sign",
+            "Placidus calculation failed for this date/location (near-polar "
+            "sidereal geometry); used Whole Sign instead.",
+        )
+
+
 @dataclass
 class PlanetPosition:
     name: str
@@ -78,30 +118,42 @@ class PlanetPosition:
 @dataclass
 class ChartResult:
     utc_datetime: datetime
-    resolved_timezone: str
+    resolved_timezone: str | None
     utc_offset_hours: float
     julian_day_ut: float
     house_system: str
+    house_system_fallback_reason: str | None
     house_cusps: list[float]
     ascendant: float
     midheaven: float
+    houses_reliable: bool
     planets: list[PlanetPosition] = field(default_factory=list)
 
 
 def calculate_chart(
-    birth_date: date, birth_time: time, lat: float, lon: float
+    birth_date: date,
+    birth_time: time | None,
+    lat: float,
+    lon: float,
+    system: AstrologicalSystem = "western_tropical",
+    utc_offset_override: float | None = None,
 ) -> ChartResult:
     if not (-90 <= lat <= 90):
         raise ChartCalculationError("Latitude must be between -90 and 90 degrees")
     if not (-180 <= lon <= 180):
         raise ChartCalculationError("Longitude must be between -180 and 180 degrees")
 
-    utc_dt, tz_name, offset_hours = local_to_utc(birth_date, birth_time, lat, lon)
+    houses_reliable = birth_time is not None
+    effective_birth_time = birth_time if birth_time is not None else DEFAULT_UNKNOWN_BIRTH_TIME
+
+    utc_dt, tz_name, offset_hours = resolve_utc_datetime(
+        birth_date, effective_birth_time, lat, lon, utc_offset_override
+    )
 
     hour_decimal = utc_dt.hour + utc_dt.minute / 60 + utc_dt.second / 3600
     jd_ut = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, hour_decimal)
 
-    cusps, ascmc = swe.houses(jd_ut, lat, lon, HOUSE_SYSTEM_CODE)
+    cusps, ascmc, house_system_label, fallback_reason = _compute_houses(jd_ut, lat, lon, system)
 
     planets: list[PlanetPosition] = []
     for name, body_code in PLANETS.items():
@@ -115,7 +167,7 @@ def calculate_chart(
                 longitude=lon_deg,
                 sign=sign,
                 degree_in_sign=degree_in_sign,
-                house=house_of_longitude(lon_deg, cusps),
+                house=house_of_longitude(lon_deg, cusps) if houses_reliable else 0,
                 retrograde=lon_speed < 0,
             )
         )
@@ -125,9 +177,11 @@ def calculate_chart(
         resolved_timezone=tz_name,
         utc_offset_hours=offset_hours,
         julian_day_ut=jd_ut,
-        house_system=HOUSE_SYSTEM_LABEL,
+        house_system=house_system_label,
+        house_system_fallback_reason=fallback_reason,
         house_cusps=list(cusps),
         ascendant=ascmc[0],
         midheaven=ascmc[1],
+        houses_reliable=houses_reliable,
         planets=planets,
     )

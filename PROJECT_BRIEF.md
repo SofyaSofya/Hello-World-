@@ -57,17 +57,32 @@ Content framework draws on three astrological traditions of family analysis:
 - `threads`: computed table/view — planet_a, planet_b, aspect_type, list of person_ids
   who carry it, occurrence_count
 
-## Tech Stack
+## Tech Stack (decided)
 
 **Backend**
-- Ephemeris/chart calculation: Swiss Ephemeris (via `pyswisseph` if Python, or a Node
-  binding) — do not hand-roll astronomical calculations.
-- API: FastAPI (Python) or NestJS (Node). Python is a good fit if the thread-detection
-  and pattern analysis logic grows more statistical (pandas/networkx).
-- Database: PostgreSQL for relational data (people, relationships, charts).
+- Language/framework: **Python/FastAPI**. Chosen over Node/NestJS because the
+  ephemeris binding (pyswisseph) is more mature in Python, the later pattern-detection
+  work (thread detector, generational cohort comparison, element aggregation) is
+  naturally pandas/networkx territory, and the timezone-resolution libraries
+  (timezonefinder, zoneinfo/tzdata) are strongest in Python. FastAPI specifically for
+  automatic OpenAPI docs and Pydantic validation on birth-data inputs.
+- Ephemeris/chart calculation: Swiss Ephemeris via `pyswisseph`.
+- House system: **Placidus by default**, auto-fallback to **Whole Sign** above ~66°
+  latitude (Placidus is mathematically undefined near the poles). Vedic mode always
+  uses Whole Sign, matching Jyotish convention.
+- Timezone handling: **auto-resolve**, not caller-supplied. Pipeline is lat/lon →
+  IANA timezone name (`timezonefinder`) → historical UTC offset for the exact date
+  (`zoneinfo`/tzdata). Store the resolved UTC timestamp as canonical; surface the
+  resolved local time/offset to the caller for confirmation; support an optional
+  manual UTC-offset override for edge cases (pre-1970s dates, disputed regions).
+- Unknown birth time fallback: noon chart with houses flagged unreliable, rather than
+  blocking chart creation — needed because older relatives' exact birth times are
+  often unknown.
+- Database: PostgreSQL for relational data (people, relationships, charts), introduced
+  in the step after the thread detector is validated (see Build Sequence below).
   Family tree traversal is graph-like — either model it relationally with a
   `relationships` edge table (fine at small/medium scale) or use Neo4j if tree queries
-  get complex.
+  get complex later.
 
 **Frontend**
 - Next.js (React) — ships as a web app first, PWA-capable, good for organic/SEO growth.
@@ -79,6 +94,30 @@ Content framework draws on three astrological traditions of family analysis:
   facts — this is a content-writing task as much as an engineering one. Model it as a
   lookup table: `interpretation_key -> long-form text`, so writers can iterate without
   touching code.
+
+## Build Sequence (decided)
+
+1. **Chart calculation endpoint** — birth data in, planet positions + houses + aspects
+   out, verified against a known chart. (Done.)
+2. **In-memory thread detector** — pure functions (`calculate_aspects`, `find_threads`),
+   no database. Tested against 2-3 fixture charts including a deliberate exact-match
+   pair, a near-miss-outside-orb pair, and a no-overlap negative control. Validated:
+   the feature produces non-noisy, interesting output. **Planet filtering**: default to
+   `personal_planets` + `social_planets` only (Sun through Saturn); `generational_planets`
+   (Uranus/Neptune/Pluto) are excluded by default because their slow orbits make
+   shared placements a function of birth-year proximity rather than family-specific
+   signal — that signal belongs to the generational cohort lens feature instead.
+   Exposed as an opt-in toggle, not a hard rule. (Done.)
+3. **Family tree data model + Postgres** — `people`, `relationships`, `charts` tables.
+   Started now that step 2 has validated the thread-detector logic is worth building
+   persistence around. (Current step.)
+4. **Family element profile** — first feature implemented against the persisted data
+   model from step 3, since it requires querying "all people in a family" rather than
+   an in-memory list. Aggregates elemental (Fire/Earth/Air/Water) balance across all
+   family members.
+5. Remaining features (ancestral pattern report, genogram visualization, generational
+   cohort lens, family timeline) — sequenced after the element profile, per the
+   priority order above.
 
 ## Open Decisions
 

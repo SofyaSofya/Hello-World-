@@ -87,6 +87,13 @@
       "sextile": 4
     },
     "minimum_occurrences_to_flag": 2,
-    "notes": "A thread is flagged when the same planet-pair + aspect-type combination (e.g., Moon-Pluto square) appears in 2 or more family members' natal charts, independent of house placement."
+    "planet_filtering": {
+      "personal_planets": ["Sun", "Moon", "Mercury", "Venus", "Mars"],
+      "social_planets": ["Jupiter", "Saturn"],
+      "generational_planets": ["Uranus", "Neptune", "Pluto"],
+      "included_by_default": ["personal_planets", "social_planets"],
+      "notes": "Generational planets move slowly enough (84-248yr orbits) that any two people born within a few years of each other will share sign/aspect placements regardless of family relation, which is generational noise, not family-specific signal. Excluded from the thread detector by default; that signal belongs to the separate generational_cohort_lens feature instead. Expose as an opt-in toggle (label results 'generational' vs 'personal' thread) rather than a hard rule, in case users want to see them anyway."
+    },
+    "notes": "A thread is flagged when the same planet-pair + aspect-type combination (e.g., Moon-Pluto square) appears in 2 or more family members' natal charts, independent of house placement. Restrict planet-pair combinations to the included_by_default set unless the caller opts in to generational_planets."
   }
 }

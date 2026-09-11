@@ -43,11 +43,27 @@ curl -X POST http://127.0.0.1:8000/family/threads \
   }'
 ```
 
-Known open issue: outer planets (Uranus/Neptune/Pluto) move slowly enough that any
-two people from the same astrological generation will share several "threads"
-regardless of family -- not yet filtered or distinguished from personal-planet
-threads. See PROJECT_BRIEF.md's generational cohort lens (feature 7); this needs a
-decision before the thread list is meaningful for real families.
+Generational planets (Uranus/Neptune/Pluto) are excluded from thread detection by
+default, per family_roles.json's `planetary_thread_rules.planet_filtering` -- their
+slow orbits make shared placements a function of birth-year proximity, not a
+family-specific pattern. Set `"include_generational_planets": true` in the request
+to opt in; such threads are returned with `"category": "generational"`.
+
+### Chart options
+
+`POST /chart` and each person in `POST /family/threads` accept:
+
+- `birth_time` (optional) -- if omitted, the chart falls back to a noon convention
+  and `houses_reliable: false` is returned (planets get `house: 0`), since house
+  placement depends on exact time. Useful when an older relative's exact birth time
+  is unknown.
+- `system` (`"western_tropical"` default, or `"vedic"`) -- Western tropical uses
+  Placidus houses, auto-falling back to Whole Sign above ~66 degrees latitude
+  (Placidus is undefined near the poles; `house_system_fallback_reason` explains
+  why when this happens). Vedic mode always uses Whole Sign.
+- `utc_offset_override` (optional hours) -- bypasses timezone auto-resolution, for
+  edge cases like pre-1970s dates outside tzdata's coverage or disputed regions.
+  When used, `resolved_time.resolved_timezone` is `null` in the response.
 
 Interactive docs at `http://127.0.0.1:8000/docs`.
 

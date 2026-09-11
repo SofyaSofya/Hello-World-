@@ -100,6 +100,69 @@ def test_post_family_threads_requires_at_least_two_people():
     assert resp.status_code == 422
 
 
+def test_post_chart_without_birth_time_flags_houses_unreliable():
+    resp = client.post(
+        "/chart",
+        json={
+            "birth_date": "1987-02-21",
+            "latitude": 55.7558,
+            "longitude": 37.6173,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["houses_reliable"] is False
+    assert all(p["house"] == 0 for p in body["planets"])
+
+
+def test_post_chart_with_utc_offset_override():
+    resp = client.post(
+        "/chart",
+        json={
+            "birth_date": "1987-02-21",
+            "birth_time": "17:00:00",
+            "latitude": 55.7558,
+            "longitude": 37.6173,
+            "utc_offset_override": 5.0,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resolved_time"]["resolved_timezone"] is None
+    assert body["resolved_time"]["utc_offset_hours"] == 5.0
+
+
+def test_post_chart_vedic_system_uses_whole_sign():
+    resp = client.post(
+        "/chart",
+        json={
+            "birth_date": "1987-02-21",
+            "birth_time": "17:00:00",
+            "latitude": 55.7558,
+            "longitude": 37.6173,
+            "system": "vedic",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["house_system"] == "Whole Sign"
+
+
+def test_post_chart_high_latitude_falls_back_to_whole_sign():
+    resp = client.post(
+        "/chart",
+        json={
+            "birth_date": "1987-02-21",
+            "birth_time": "12:00:00",
+            "latitude": 69.6492,
+            "longitude": 18.9553,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["house_system"] == "Whole Sign"
+    assert body["house_system_fallback_reason"] is not None
+
+
 def test_post_family_threads_rejects_duplicate_names():
     person = {
         "name": "Duplicate",

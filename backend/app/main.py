@@ -5,7 +5,12 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException
 
 from app.aspects import find_aspects
-from app.ephemeris import ChartCalculationError, calculate_chart, longitude_to_sign_degree
+from app.ephemeris import (
+    DEFAULT_UNKNOWN_BIRTH_TIME,
+    ChartCalculationError,
+    calculate_chart,
+    longitude_to_sign_degree,
+)
 from app.schemas import (
     AngleResponse,
     AspectResponse,
@@ -17,7 +22,7 @@ from app.schemas import (
     ResolvedTimeResponse,
     ThreadResponse,
 )
-from app.threads import detect_threads
+from app.threads import default_included_categories, detect_threads
 from app.timezone_utils import TimezoneResolutionError
 
 app = FastAPI(
@@ -41,6 +46,8 @@ def post_chart(request: ChartRequest) -> ChartResponse:
             birth_time=request.birth_time,
             lat=request.latitude,
             lon=request.longitude,
+            system=request.system,
+            utc_offset_override=request.utc_offset_override,
         )
     except (ChartCalculationError, TimezoneResolutionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -51,7 +58,9 @@ def post_chart(request: ChartRequest) -> ChartResponse:
     asc_sign, asc_deg = longitude_to_sign_degree(chart.ascendant)
     mc_sign, mc_deg = longitude_to_sign_degree(chart.midheaven)
 
-    input_local_dt = datetime.combine(request.birth_date, request.birth_time)
+    input_local_dt = datetime.combine(
+        request.birth_date, request.birth_time or DEFAULT_UNKNOWN_BIRTH_TIME
+    )
 
     return ChartResponse(
         resolved_time=ResolvedTimeResponse(
@@ -61,6 +70,8 @@ def post_chart(request: ChartRequest) -> ChartResponse:
             utc_datetime=chart.utc_datetime,
         ),
         house_system=chart.house_system,
+        house_system_fallback_reason=chart.house_system_fallback_reason,
+        houses_reliable=chart.houses_reliable,
         house_cusps=chart.house_cusps,
         ascendant=AngleResponse(longitude=chart.ascendant, sign=asc_sign, degree_in_sign=asc_deg),
         midheaven=AngleResponse(longitude=chart.midheaven, sign=mc_sign, degree_in_sign=mc_deg),
@@ -102,12 +113,17 @@ def post_family_threads(request: FamilyThreadsRequest) -> FamilyThreadsResponse:
                 birth_time=person.birth_time,
                 lat=person.latitude,
                 lon=person.longitude,
+                system=person.system,
+                utc_offset_override=person.utc_offset_override,
             )
         except (ChartCalculationError, TimezoneResolutionError) as exc:
             raise HTTPException(status_code=422, detail=f"{person.name}: {exc}") from exc
         people_planet_longitudes[person.name] = {p.name: p.longitude for p in chart.planets}
 
-    threads = detect_threads(people_planet_longitudes)
+    include_categories = default_included_categories()
+    if request.include_generational_planets:
+        include_categories.add("generational")
+    threads = detect_threads(people_planet_longitudes, include_categories=include_categories)
 
     return FamilyThreadsResponse(
         people=names,
@@ -116,6 +132,7 @@ def post_family_threads(request: FamilyThreadsRequest) -> FamilyThreadsResponse:
                 planet_a=t.planet_a,
                 planet_b=t.planet_b,
                 aspect_type=t.aspect_type,
+                category=t.category,
                 people=t.people,
                 occurrence_count=t.occurrence_count,
             )

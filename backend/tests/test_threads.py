@@ -6,13 +6,13 @@ from app.threads import detect_threads
 
 def test_shared_square_across_two_people_is_flagged():
     people = {
-        "Grandparent": {"Moon": 0.0, "Pluto": 90.0},
-        "Parent": {"Moon": 10.0, "Pluto": 100.0},  # same ~90 deg separation
+        "Grandparent": {"Sun": 0.0, "Saturn": 90.0},
+        "Parent": {"Sun": 10.0, "Saturn": 100.0},  # same ~90 deg separation
     }
     threads = detect_threads(people)
     assert len(threads) == 1
     thread = threads[0]
-    assert {thread.planet_a, thread.planet_b} == {"Moon", "Pluto"}
+    assert {thread.planet_a, thread.planet_b} == {"Sun", "Saturn"}
     assert thread.aspect_type == "square"
     assert set(thread.people) == {"Grandparent", "Parent"}
     assert thread.occurrence_count == 2
@@ -20,11 +20,43 @@ def test_shared_square_across_two_people_is_flagged():
 
 def test_aspect_carried_by_only_one_person_is_not_a_thread():
     people = {
-        "Grandparent": {"Moon": 0.0, "Pluto": 90.0},
-        "Parent": {"Moon": 0.0, "Pluto": 40.0},  # not a configured aspect
+        "Grandparent": {"Sun": 0.0, "Saturn": 90.0},
+        "Parent": {"Sun": 0.0, "Saturn": 40.0},  # not a configured aspect
     }
     threads = detect_threads(people)
     assert threads == []
+
+
+def test_generational_planets_excluded_by_default():
+    # Pluto is a generational planet -- excluded by default even though this Moon-Pluto
+    # square would otherwise be flagged (see test_generational_planets_included_when_requested).
+    people = {
+        "Grandparent": {"Moon": 0.0, "Pluto": 90.0},
+        "Parent": {"Moon": 10.0, "Pluto": 100.0},
+    }
+    assert detect_threads(people) == []
+
+
+def test_generational_planets_included_when_requested():
+    people = {
+        "Grandparent": {"Moon": 0.0, "Pluto": 90.0},
+        "Parent": {"Moon": 10.0, "Pluto": 100.0},
+    }
+    threads = detect_threads(people, include_categories={"personal", "social", "generational"})
+    assert len(threads) == 1
+    assert {threads[0].planet_a, threads[0].planet_b} == {"Moon", "Pluto"}
+    assert threads[0].category == "generational"
+
+
+def test_thread_category_reflects_slowest_planet_in_pair():
+    people = {
+        "A": {"Sun": 0.0, "Saturn": 0.0, "Moon": 30.0, "Mercury": 30.0},
+        "B": {"Sun": 0.0, "Saturn": 0.0, "Moon": 30.0, "Mercury": 30.0},
+    }
+    threads = detect_threads(people)
+    by_pair = {frozenset((t.planet_a, t.planet_b)): t for t in threads}
+    assert by_pair[frozenset({"Sun", "Saturn"})].category == "social"
+    assert by_pair[frozenset({"Moon", "Mercury"})].category == "personal"
 
 
 def test_thread_requires_same_planet_pair_and_aspect_type():
