@@ -1,0 +1,92 @@
+{
+  "default_system": "western_tropical",
+  "systems": {
+    "western_tropical": {
+      "label": "Western Tropical",
+      "family_roles": {
+        "mother": {
+          "houses": [4],
+          "planets": ["Moon"],
+          "notes": "Primary nurturer; modern reading may reassign to whichever parent was more home-oriented."
+        },
+        "father": {
+          "houses": [10],
+          "planets": ["Sun"],
+          "notes": "Authority/legacy figure; modern reading may reassign to the more dominant or boundary-setting parent."
+        },
+        "siblings": {
+          "houses": [3],
+          "planets": ["Mercury"],
+          "notes": "Includes cousins and the childhood peer/neighborhood environment."
+        },
+        "children": {
+          "houses": [5],
+          "planets": ["Sun", "Venus"],
+          "notes": "5th house = first child. Subsequent children traditionally read from houses 5+2n (7th, 9th, ...)."
+        },
+        "spouse": {
+          "houses": [7],
+          "planets": [],
+          "notes": "Descendant axis. Committed partnership, legal contracts, the 'other' in close relationship."
+        },
+        "general_lineage": {
+          "houses": [2],
+          "planets": [],
+          "notes": "Accumulated family wealth/values, inherited speech patterns, early upbringing tone."
+        }
+      },
+      "ancestral_pattern_houses": [4, 8, 12],
+      "notes": "Sullivan's 'water houses' framework: 4th (roots), 8th (inherited trauma/resources), 12th (unconscious/hidden family material)."
+    },
+    "vedic": {
+      "label": "Vedic / Jyotish",
+      "family_roles": {
+        "mother": {
+          "houses": [4],
+          "planets": ["Moon"],
+          "notes": "Consistent with Western system."
+        },
+        "father": {
+          "houses": [9],
+          "planets": ["Sun"],
+          "notes": "Some traditional systems use the 5th house instead of the 9th."
+        },
+        "siblings": {
+          "houses": [3, 11],
+          "planets": ["Mercury"],
+          "notes": "3rd house = younger siblings; 11th house = older siblings and extended social network."
+        },
+        "children": {
+          "houses": [5],
+          "planets": ["Sun", "Venus"],
+          "notes": "Consistent with Western system."
+        },
+        "spouse": {
+          "houses": [7],
+          "planets": [],
+          "notes": "Consistent with Western system."
+        },
+        "general_lineage": {
+          "houses": [2],
+          "planets": [],
+          "notes": "Family wealth, lineage, speech, and immediate upbringing."
+        }
+      },
+      "ancestral_pattern_houses": [4, 8, 12],
+      "notes": "Same water-house logic applies, though some traditional Vedic schools weight the 9th (father/dharma/lineage) more heavily for ancestral material than the 8th."
+    }
+  },
+  "planetary_thread_rules": {
+    "description": "Rules for detecting recurring planetary combinations ('threads') across family members, per Lynn Bell's genogram method.",
+    "aspect_types_checked": ["conjunction", "opposition", "square", "trine", "sextile"],
+    "orb_degrees": {
+      "conjunction": 8,
+      "opposition": 8,
+      "square": 6,
+      "trine": 6,
+      "sextile": 4
+    },
+    "minimum_occurrences_to_flag": 2,
+    "notes": "A thread is flagged when the same planet-pair + aspect-type combination (e.g., Moon-Pluto square) appears in 2 or more family members' natal charts, independent of house placement."
+  }
+}
