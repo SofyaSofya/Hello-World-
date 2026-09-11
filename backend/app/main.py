@@ -11,9 +11,13 @@ from app.schemas import (
     AspectResponse,
     ChartRequest,
     ChartResponse,
+    FamilyThreadsRequest,
+    FamilyThreadsResponse,
     PlanetPositionResponse,
     ResolvedTimeResponse,
+    ThreadResponse,
 )
+from app.threads import detect_threads
 from app.timezone_utils import TimezoneResolutionError
 
 app = FastAPI(
@@ -80,5 +84,41 @@ def post_chart(request: ChartRequest) -> ChartResponse:
                 orb=a.orb,
             )
             for a in aspects
+        ],
+    )
+
+
+@app.post("/family/threads", response_model=FamilyThreadsResponse)
+def post_family_threads(request: FamilyThreadsRequest) -> FamilyThreadsResponse:
+    names = [person.name for person in request.people]
+    if len(names) != len(set(names)):
+        raise HTTPException(status_code=422, detail="Person names must be unique")
+
+    people_planet_longitudes: dict[str, dict[str, float]] = {}
+    for person in request.people:
+        try:
+            chart = calculate_chart(
+                birth_date=person.birth_date,
+                birth_time=person.birth_time,
+                lat=person.latitude,
+                lon=person.longitude,
+            )
+        except (ChartCalculationError, TimezoneResolutionError) as exc:
+            raise HTTPException(status_code=422, detail=f"{person.name}: {exc}") from exc
+        people_planet_longitudes[person.name] = {p.name: p.longitude for p in chart.planets}
+
+    threads = detect_threads(people_planet_longitudes)
+
+    return FamilyThreadsResponse(
+        people=names,
+        threads=[
+            ThreadResponse(
+                planet_a=t.planet_a,
+                planet_b=t.planet_b,
+                aspect_type=t.aspect_type,
+                people=t.people,
+                occurrence_count=t.occurrence_count,
+            )
+            for t in threads
         ],
     )

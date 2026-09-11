@@ -49,3 +49,64 @@ def test_post_chart_rejects_invalid_latitude():
         },
     )
     assert resp.status_code == 422
+
+
+def test_post_family_threads_returns_valid_structure():
+    resp = client.post(
+        "/family/threads",
+        json={
+            "people": [
+                {
+                    "name": "Grandparent",
+                    "birth_date": "1955-06-10",
+                    "birth_time": "08:30:00",
+                    "latitude": 55.7558,
+                    "longitude": 37.6173,
+                },
+                {
+                    "name": "Parent",
+                    "birth_date": "1987-02-21",
+                    "birth_time": "17:00:00",
+                    "latitude": 55.7558,
+                    "longitude": 37.6173,
+                },
+            ]
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["people"] == ["Grandparent", "Parent"]
+    for thread in body["threads"]:
+        assert thread["occurrence_count"] == len(thread["people"])
+        assert thread["occurrence_count"] >= 2
+        assert set(thread["people"]) <= {"Grandparent", "Parent"}
+
+
+def test_post_family_threads_requires_at_least_two_people():
+    resp = client.post(
+        "/family/threads",
+        json={
+            "people": [
+                {
+                    "name": "OnlyPerson",
+                    "birth_date": "1987-02-21",
+                    "birth_time": "17:00:00",
+                    "latitude": 55.7558,
+                    "longitude": 37.6173,
+                },
+            ]
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_post_family_threads_rejects_duplicate_names():
+    person = {
+        "name": "Duplicate",
+        "birth_date": "1987-02-21",
+        "birth_time": "17:00:00",
+        "latitude": 55.7558,
+        "longitude": 37.6173,
+    }
+    resp = client.post("/family/threads", json={"people": [person, dict(person)]})
+    assert resp.status_code == 422

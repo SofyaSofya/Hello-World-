@@ -64,3 +64,51 @@ class ChartResponse(BaseModel):
     midheaven: AngleResponse
     planets: list[PlanetPositionResponse]
     aspects: list[AspectResponse]
+
+
+class FamilyMemberInput(BaseModel):
+    name: str = Field(..., min_length=1, description="Used to label detected threads")
+    birth_date: date
+    birth_time: time
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+
+
+class FamilyThreadsRequest(BaseModel):
+    people: list[FamilyMemberInput] = Field(..., min_length=2)
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "people": [
+                    {
+                        "name": "Grandparent",
+                        "birth_date": "1955-06-10",
+                        "birth_time": "08:30:00",
+                        "latitude": 55.7558,
+                        "longitude": 37.6173,
+                    },
+                    {
+                        "name": "Parent",
+                        "birth_date": "1987-02-21",
+                        "birth_time": "17:00:00",
+                        "latitude": 55.7558,
+                        "longitude": 37.6173,
+                    },
+                ]
+            }
+        }
+    }
+
+
+class ThreadResponse(BaseModel):
+    planet_a: str
+    planet_b: str
+    aspect_type: str
+    people: list[str]
+    occurrence_count: int
+
+
+class FamilyThreadsResponse(BaseModel):
+    people: list[str]
+    threads: list[ThreadResponse]
