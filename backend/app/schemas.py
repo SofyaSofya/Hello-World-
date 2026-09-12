@@ -216,3 +216,34 @@ class FamilyElementsResponse(BaseModel):
     dominant_element: str
     archetype_summary: str
     per_person: list[PersonElementSummary]
+
+
+# --- Ancestral pattern report (Step 5) --------------------------------------
+
+
+class PlanetPlacementResponse(BaseModel):
+    planet: str
+    house: int
+    sign: str
+
+
+class PersonAncestralPlacementsResponse(BaseModel):
+    person: str
+    placements: list[PlanetPlacementResponse]
+
+
+class RecurringAncestralThemeResponse(BaseModel):
+    planet: str
+    houses_by_person: dict[str, int]
+    occurrence_count: int
+
+
+class AncestralPatternReportResponse(BaseModel):
+    ancestral_houses_by_system: dict[str, list[int]]
+    per_person: list[PersonAncestralPlacementsResponse]
+    excluded_people: list[str] = Field(
+        default_factory=list,
+        description="People excluded for having houses_reliable=false (unknown birth time).",
+    )
+    house_emphasis: dict[int, int]
+    recurring_themes: list[RecurringAncestralThemeResponse]

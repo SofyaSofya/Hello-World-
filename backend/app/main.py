@@ -7,10 +7,16 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.chart_presentation import aspects_to_json, chart_to_response, compute_chart, planets_to_json
+from app.ancestral import (
+    PersonInput as AncestralPersonInput,
+    aggregate_ancestral_patterns,
+    get_ancestral_pattern_houses,
+)
 from app.db import get_db
 from app.elements import PersonInput as ElementPersonInput, aggregate_family_elements
 from app.ephemeris import DEFAULT_UNKNOWN_BIRTH_TIME, ChartCalculationError, longitude_to_sign_degree
 from app.schemas import (
+    AncestralPatternReportResponse,
     AngleResponse,
     ChartRequest,
     ChartResponse,
@@ -19,9 +25,12 @@ from app.schemas import (
     FamilyThreadsRequest,
     FamilyThreadsResponse,
     PersistedThreadsRequest,
+    PersonAncestralPlacementsResponse,
     PersonCreate,
     PersonElementSummary,
     PersonResponse,
+    PlanetPlacementResponse,
+    RecurringAncestralThemeResponse,
     RelationshipCreate,
     RelationshipResponse,
     ResolvedTimeResponse,
@@ -326,5 +335,57 @@ def get_family_elements(db: Session = Depends(get_db)) -> FamilyElementsResponse
                 dominant_element=max(percentages, key=percentages.get),
             )
             for name, percentages in profile.per_person_percentages.items()
+        ],
+    )
+
+
+@app.get("/family/ancestral-patterns", response_model=AncestralPatternReportResponse)
+def get_family_ancestral_patterns(db: Session = Depends(get_db)) -> AncestralPatternReportResponse:
+    """Cross-generational themes from water-house (4th/8th/12th by default)
+    placements, per PROJECT_BRIEF.md Step 5 / Sullivan's ancestral-material framing.
+    People with houses_reliable=false are excluded (house-based analysis is
+    meaningless without a known birth time) and reported as excluded, not dropped
+    silently."""
+    people = db.query(models.Person).order_by(models.Person.id).all()
+    if not people:
+        raise HTTPException(status_code=422, detail="No persisted people to report on")
+
+    ancestral_inputs = [
+        AncestralPersonInput(
+            name=person.name,
+            system=person.system,
+            planets=person.chart.planets,
+            houses_reliable=person.chart.houses_reliable,
+        )
+        for person in people
+    ]
+    report = aggregate_ancestral_patterns(ancestral_inputs)
+
+    systems_used = sorted({person.system for person in people})
+    ancestral_houses_by_system = {
+        system: get_ancestral_pattern_houses(system) for system in systems_used
+    }
+
+    return AncestralPatternReportResponse(
+        ancestral_houses_by_system=ancestral_houses_by_system,
+        per_person=[
+            PersonAncestralPlacementsResponse(
+                person=name,
+                placements=[
+                    PlanetPlacementResponse(planet=pl.planet, house=pl.house, sign=pl.sign)
+                    for pl in placements
+                ],
+            )
+            for name, placements in report.per_person_placements.items()
+        ],
+        excluded_people=report.excluded_people,
+        house_emphasis=report.house_emphasis,
+        recurring_themes=[
+            RecurringAncestralThemeResponse(
+                planet=t.planet,
+                houses_by_person=t.houses_by_person,
+                occurrence_count=t.occurrence_count,
+            )
+            for t in report.recurring_themes
         ],
     )

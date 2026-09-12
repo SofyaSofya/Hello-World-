@@ -161,3 +161,54 @@ def test_family_elements_aggregates_persisted_people(db_session):
     assert per_person_names == {"Grandparent", "Parent"}
     for p in body["per_person"]:
         assert sum(p["percentages"].values()) == pytest.approx(100.0)
+
+
+def test_family_ancestral_patterns_requires_at_least_one_person(db_session):
+    resp = client.get("/family/ancestral-patterns")
+    assert resp.status_code == 422
+
+
+def test_family_ancestral_patterns_finds_recurring_jupiter_and_saturn(db_session):
+    # Verified via direct calculate_chart(): Grandparent has Jupiter(house 12) and
+    # Saturn(house 4) in water houses; Parent has Jupiter(house 8) and Saturn(house
+    # 4) -- both planets recur across the two, a real cross-generational theme.
+    _create_person(GRANDPARENT)
+    _create_person(PARENT)
+
+    resp = client.get("/family/ancestral-patterns")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["ancestral_houses_by_system"] == {"western_tropical": [4, 8, 12]}
+    assert body["excluded_people"] == []
+    assert body["house_emphasis"] == {"4": 4, "8": 2, "12": 2}
+
+    themes_by_planet = {t["planet"]: t for t in body["recurring_themes"]}
+    assert set(themes_by_planet) == {"Jupiter", "Saturn"}
+    assert themes_by_planet["Jupiter"]["houses_by_person"] == {
+        "Grandparent": 12,
+        "Parent": 8,
+    }
+    assert themes_by_planet["Saturn"]["houses_by_person"] == {
+        "Grandparent": 4,
+        "Parent": 4,
+    }
+    assert themes_by_planet["Saturn"]["occurrence_count"] == 2
+
+
+def test_family_ancestral_patterns_excludes_unreliable_houses(db_session):
+    _create_person(PARENT)
+    _create_person(
+        {
+            "name": "UnknownBirthTime",
+            "birth_date": "1930-01-01",
+            "latitude": 55.7558,
+            "longitude": 37.6173,
+        }
+    )
+
+    resp = client.get("/family/ancestral-patterns")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["excluded_people"] == ["UnknownBirthTime"]
+    assert {p["person"] for p in body["per_person"]} == {"Parent"}

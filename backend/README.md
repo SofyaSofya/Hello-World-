@@ -133,6 +133,23 @@ but arbitrarily -- worth knowing since a 2-3 person family hits ties often.
 curl http://127.0.0.1:8000/family/elements
 ```
 
+### Ancestral pattern report (Step 5)
+
+`GET /family/ancestral-patterns` surfaces cross-generational themes from each
+person's 4th/8th/12th house ("water house") placements, per Sullivan's framing of
+these as where ancestral/unconscious family material lives. A theme is a planet
+landing in a water house for 2+ people (house numbers can differ per person -- it's
+the planet-in-a-water-house pattern that recurs, not the exact house). Also reports
+per-person placements and a family-wide house-emphasis count.
+
+People with `houses_reliable: false` (unknown birth time) are excluded from the
+report and listed in `excluded_people` rather than silently dropped, since house
+placement is meaningless off a noon-default chart.
+
+```bash
+curl http://127.0.0.1:8000/family/ancestral-patterns
+```
+
 Interactive docs at `http://127.0.0.1:8000/docs`.
 
 ## Test
