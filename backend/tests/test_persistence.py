@@ -2,6 +2,7 @@
 chart, POST /relationships links people, and POST /threads runs the same
 detect_threads() pure function against stored charts instead of raw birth data."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -136,3 +137,27 @@ def test_persisted_threads_requires_at_least_two_people(db_session):
     _create_person(PARENT)
     resp = client.post("/threads", json={})
     assert resp.status_code == 422
+
+
+def test_family_elements_requires_at_least_one_person(db_session):
+    resp = client.get("/family/elements")
+    assert resp.status_code == 422
+
+
+def test_family_elements_aggregates_persisted_people(db_session):
+    _create_person(GRANDPARENT)
+    _create_person(PARENT)
+
+    resp = client.get("/family/elements")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert set(body["family_percentages"]) == {"Fire", "Earth", "Air", "Water"}
+    assert sum(body["family_percentages"].values()) == pytest.approx(100.0)
+    assert body["dominant_element"] in {"Fire", "Earth", "Air", "Water"}
+    assert body["archetype_summary"]
+
+    per_person_names = {p["person"] for p in body["per_person"]}
+    assert per_person_names == {"Grandparent", "Parent"}
+    for p in body["per_person"]:
+        assert sum(p["percentages"].values()) == pytest.approx(100.0)

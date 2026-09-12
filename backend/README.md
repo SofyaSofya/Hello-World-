@@ -10,7 +10,14 @@ pip install -r backend/requirements.txt
 
 ### Database (Postgres)
 
-Requires a running Postgres instance. Locally:
+Requires a running Postgres instance -- if installed locally but not started
+(e.g. after a fresh container/session), start the cluster first:
+
+```bash
+pg_ctlcluster 16 main start   # version may differ; pg_lsclusters shows what's installed
+```
+
+First-time setup:
 
 ```bash
 sudo pg_ctlcluster <version> main start   # or however your install starts it
@@ -110,6 +117,21 @@ but reads planet longitudes from every persisted person's stored chart instead o
 recomputing from raw birth data each time -- "the family" is currently just "all
 persisted people" (there's no separate family-grouping entity yet; see
 PROJECT_BRIEF.md's Open Decisions on single vs. multi-family scope).
+
+### Family element profile (Step 4)
+
+`GET /family/elements` aggregates elemental (Fire/Earth/Air/Water) balance across
+all persisted people -- the first feature queried against the Step 3 data model
+rather than computed in-memory. Weighting (Sun/Moon/Ascendant count double vs. the
+other 8 planets; Ascendant excluded when `houses_reliable` is false) is a documented
+design decision in `family_roles.json`'s `family_element_profile_rules`, not an
+established astrological standard -- revisit there if output feels off. Ties in
+`dominant_element` resolve to Fire > Earth > Air > Water by list order, not randomly,
+but arbitrarily -- worth knowing since a 2-3 person family hits ties often.
+
+```bash
+curl http://127.0.0.1:8000/family/elements
+```
 
 Interactive docs at `http://127.0.0.1:8000/docs`.
 

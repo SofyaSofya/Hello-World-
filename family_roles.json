@@ -95,5 +95,12 @@
       "notes": "Generational planets move slowly enough (84-248yr orbits) that any two people born within a few years of each other will share sign/aspect placements regardless of family relation, which is generational noise, not family-specific signal. Excluded from the thread detector by default; that signal belongs to the separate generational_cohort_lens feature instead. Expose as an opt-in toggle (label results 'generational' vs 'personal' thread) rather than a hard rule, in case users want to see them anyway."
     },
     "notes": "A thread is flagged when the same planet-pair + aspect-type combination (e.g., Moon-Pluto square) appears in 2 or more family members' natal charts, independent of house placement. Restrict planet-pair combinations to the included_by_default set unless the caller opts in to generational_planets."
+  },
+  "family_element_profile_rules": {
+    "description": "Weighting rules for aggregating elemental (Fire/Earth/Air/Water) balance across a person's chart and across a family, per Sullivan's family element typing.",
+    "personal_points": ["Sun", "Moon", "Ascendant"],
+    "personal_point_weight": 2,
+    "default_weight": 1,
+    "notes": "Sun, Moon, and Ascendant are weighted double relative to the other 8 planets, since they conventionally dominate a chart's felt temperament more than e.g. Uranus's sign (which mostly reflects generation, not individual character -- the same generational-noise concern as planetary_thread_rules.planet_filtering). Ascendant is excluded entirely when houses_reliable is false (unknown birth time defaulted to noon), since Ascendant sign changes roughly every two hours and a noon-default chart's Ascendant carries no real signal. This weighting is a design decision, not an established astrological standard -- reasonable astrologers could weight this differently; revisit if family archetype output feels off."
   }
 }

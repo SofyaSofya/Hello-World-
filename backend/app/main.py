@@ -8,16 +8,19 @@ from sqlalchemy.orm import Session
 from app import models
 from app.chart_presentation import aspects_to_json, chart_to_response, compute_chart, planets_to_json
 from app.db import get_db
+from app.elements import PersonInput as ElementPersonInput, aggregate_family_elements
 from app.ephemeris import DEFAULT_UNKNOWN_BIRTH_TIME, ChartCalculationError, longitude_to_sign_degree
 from app.schemas import (
     AngleResponse,
     ChartRequest,
     ChartResponse,
     DEFAULT_GENERATION_OFFSET,
+    FamilyElementsResponse,
     FamilyThreadsRequest,
     FamilyThreadsResponse,
     PersistedThreadsRequest,
     PersonCreate,
+    PersonElementSummary,
     PersonResponse,
     RelationshipCreate,
     RelationshipResponse,
@@ -288,5 +291,40 @@ def post_persisted_threads(
                 occurrence_count=t.occurrence_count,
             )
             for t in threads
+        ],
+    )
+
+
+@app.get("/family/elements", response_model=FamilyElementsResponse)
+def get_family_elements(db: Session = Depends(get_db)) -> FamilyElementsResponse:
+    """Aggregate elemental (Fire/Earth/Air/Water) balance across all persisted
+    people -- the first feature queried against the Step 3 data model rather than
+    computed in-memory, per PROJECT_BRIEF.md Step 4."""
+    people = db.query(models.Person).order_by(models.Person.id).all()
+    if not people:
+        raise HTTPException(status_code=422, detail="No persisted people to profile")
+
+    element_inputs = [
+        ElementPersonInput(
+            name=person.name,
+            planets=person.chart.planets,
+            ascendant_sign=longitude_to_sign_degree(person.chart.ascendant)[0],
+            houses_reliable=person.chart.houses_reliable,
+        )
+        for person in people
+    ]
+    profile = aggregate_family_elements(element_inputs)
+
+    return FamilyElementsResponse(
+        family_percentages=profile.family_percentages,
+        dominant_element=profile.dominant_element,
+        archetype_summary=profile.archetype_summary,
+        per_person=[
+            PersonElementSummary(
+                person=name,
+                percentages=percentages,
+                dominant_element=max(percentages, key=percentages.get),
+            )
+            for name, percentages in profile.per_person_percentages.items()
         ],
     )

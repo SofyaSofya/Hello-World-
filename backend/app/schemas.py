@@ -200,3 +200,19 @@ class RelationshipResponse(BaseModel):
 
 class PersistedThreadsRequest(BaseModel):
     include_generational_planets: bool = Field(default=False)
+
+
+# --- Family element profile (Step 4) ----------------------------------------
+
+
+class PersonElementSummary(BaseModel):
+    person: str
+    percentages: dict[str, float]
+    dominant_element: str
+
+
+class FamilyElementsResponse(BaseModel):
+    family_percentages: dict[str, float]
+    dominant_element: str
+    archetype_summary: str
+    per_person: list[PersonElementSummary]
