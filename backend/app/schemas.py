@@ -265,3 +265,40 @@ class PlanetCohortsResponse(BaseModel):
 
 class GenerationalCohortsResponse(BaseModel):
     cohorts_by_planet: list[PlanetCohortsResponse]
+
+
+# --- Family timeline (Step 8) ------------------------------------------------
+
+
+class LifeEventCreate(BaseModel):
+    person_id: int
+    event_type: str = Field(
+        ...,
+        description="Must be one of family_roles.json's family_timeline_rules.event_types "
+        "(birth_of_child, marriage, divorce, death_of_parent, death_of_spouse, "
+        "death_of_sibling, career_change, relocation, other).",
+    )
+    event_date: date
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class LifeEventResponse(BaseModel):
+    id: int
+    person_id: int
+    person_name: str
+    event_type: str
+    event_date: date
+    age_at_event: int
+    description: str | None
+
+
+class TimingPatternResponse(BaseModel):
+    event_type: str
+    age_at_event: int
+    people: list[str]
+    occurrence_count: int
+
+
+class FamilyTimelineResponse(BaseModel):
+    events: list[LifeEventResponse]
+    timing_patterns: list[TimingPatternResponse]

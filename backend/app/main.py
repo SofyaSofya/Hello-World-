@@ -6,12 +6,12 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from app import models
-from app.chart_presentation import aspects_to_json, chart_to_response, compute_chart, planets_to_json
 from app.ancestral import (
     PersonInput as AncestralPersonInput,
     aggregate_ancestral_patterns,
     get_ancestral_pattern_houses,
 )
+from app.chart_presentation import aspects_to_json, chart_to_response, compute_chart, planets_to_json
 from app.cohorts import PersonInput as CohortPersonInput, aggregate_generational_cohorts
 from app.db import get_db
 from app.elements import PersonInput as ElementPersonInput, aggregate_family_elements
@@ -26,7 +26,10 @@ from app.schemas import (
     FamilyElementsResponse,
     FamilyThreadsRequest,
     FamilyThreadsResponse,
+    FamilyTimelineResponse,
     GenerationalCohortsResponse,
+    LifeEventCreate,
+    LifeEventResponse,
     PersistedThreadsRequest,
     PersonAncestralPlacementsResponse,
     PersonCreate,
@@ -39,8 +42,15 @@ from app.schemas import (
     RelationshipResponse,
     ResolvedTimeResponse,
     ThreadResponse,
+    TimingPatternResponse,
 )
 from app.threads import default_included_categories, detect_threads
+from app.timeline import (
+    EventInput as TimingEventInput,
+    compute_age_at_event,
+    detect_timing_patterns,
+    get_life_event_types,
+)
 from app.timezone_utils import TimezoneResolutionError
 
 app = FastAPI(
@@ -421,5 +431,99 @@ def get_family_generational_cohorts(db: Session = Depends(get_db)) -> Generation
                 distinct_cohort_count=planet_cohorts.distinct_cohort_count,
             )
             for planet_cohorts in report.cohorts_by_planet
+        ],
+    )
+
+
+# --- Family timeline (Step 8) -----------------------------------------------
+
+
+def _life_event_to_response(event: models.LifeEvent, person_name: str) -> LifeEventResponse:
+    return LifeEventResponse(
+        id=event.id,
+        person_id=event.person_id,
+        person_name=person_name,
+        event_type=event.event_type,
+        event_date=event.event_date,
+        age_at_event=event.age_at_event,
+        description=event.description,
+    )
+
+
+@app.post("/life-events", response_model=LifeEventResponse, status_code=201)
+def create_life_event(payload: LifeEventCreate, db: Session = Depends(get_db)) -> LifeEventResponse:
+    person = db.get(models.Person, payload.person_id)
+    if person is None:
+        raise HTTPException(status_code=422, detail=f"No person with id {payload.person_id}")
+
+    valid_types = get_life_event_types()
+    if payload.event_type not in valid_types:
+        raise HTTPException(
+            status_code=422,
+            detail=f"event_type must be one of {valid_types}, got {payload.event_type!r}",
+        )
+
+    if payload.event_date < person.birth_date:
+        raise HTTPException(
+            status_code=422, detail="event_date cannot be before the person's birth_date"
+        )
+
+    event = models.LifeEvent(
+        person_id=person.id,
+        event_type=payload.event_type,
+        event_date=payload.event_date,
+        age_at_event=compute_age_at_event(person.birth_date, payload.event_date),
+        description=payload.description,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+
+    return _life_event_to_response(event, person.name)
+
+
+@app.get("/life-events", response_model=list[LifeEventResponse])
+def list_life_events(db: Session = Depends(get_db)) -> list[LifeEventResponse]:
+    events = (
+        db.query(models.LifeEvent)
+        .join(models.Person)
+        .order_by(models.LifeEvent.event_date)
+        .all()
+    )
+    return [_life_event_to_response(event, event.person.name) for event in events]
+
+
+@app.get("/family/timeline", response_model=FamilyTimelineResponse)
+def get_family_timeline(db: Session = Depends(get_db)) -> FamilyTimelineResponse:
+    """Chronological life events across all persisted people, plus cross-generational
+    timing patterns (same event_type at the same completed age for 2+ people), per
+    PROJECT_BRIEF.md Step 8."""
+    events = (
+        db.query(models.LifeEvent)
+        .join(models.Person)
+        .order_by(models.LifeEvent.event_date)
+        .all()
+    )
+
+    timing_inputs = [
+        TimingEventInput(
+            person_name=event.person.name,
+            event_type=event.event_type,
+            age_at_event=event.age_at_event,
+        )
+        for event in events
+    ]
+    patterns = detect_timing_patterns(timing_inputs)
+
+    return FamilyTimelineResponse(
+        events=[_life_event_to_response(event, event.person.name) for event in events],
+        timing_patterns=[
+            TimingPatternResponse(
+                event_type=p.event_type,
+                age_at_event=p.age_at_event,
+                people=p.people,
+                occurrence_count=p.occurrence_count,
+            )
+            for p in patterns
         ],
     )

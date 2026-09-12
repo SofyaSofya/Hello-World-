@@ -244,3 +244,84 @@ def test_family_generational_cohorts_splits_grandparent_and_parent(db_session):
         assert pc["distinct_cohort_count"] == 2
         actual = {person: c["sign"] for c in pc["cohorts"] for person in c["people"]}
         assert actual == expected
+
+
+def test_create_life_event_computes_age_and_persists(db_session):
+    person = _create_person(PARENT)  # born 1987-02-21
+
+    resp = client.post(
+        "/life-events",
+        json={
+            "person_id": person["id"],
+            "event_type": "marriage",
+            "event_date": "2015-06-01",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["person_name"] == "Parent"
+    assert body["age_at_event"] == 28  # birthday Feb 21 already passed by June 1
+
+    listed = client.get("/life-events").json()
+    assert len(listed) == 1
+    assert listed[0]["age_at_event"] == 28
+
+
+def test_create_life_event_rejects_invalid_event_type(db_session):
+    person = _create_person(PARENT)
+    resp = client.post(
+        "/life-events",
+        json={"person_id": person["id"], "event_type": "not_a_real_type", "event_date": "2015-06-01"},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_life_event_rejects_date_before_birth(db_session):
+    person = _create_person(PARENT)  # born 1987-02-21
+    resp = client.post(
+        "/life-events",
+        json={"person_id": person["id"], "event_type": "other", "event_date": "1980-01-01"},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_life_event_rejects_unknown_person(db_session):
+    resp = client.post(
+        "/life-events",
+        json={"person_id": 999999, "event_type": "other", "event_date": "2000-01-01"},
+    )
+    assert resp.status_code == 422
+
+
+def test_family_timeline_detects_cross_generational_timing_pattern(db_session):
+    grandparent = _create_person(GRANDPARENT)  # born 1955-06-10
+    parent = _create_person(PARENT)  # born 1987-02-21
+
+    # Both marry at age 24: Grandparent on/after their 24th birthday in 1979,
+    # Parent on/after their 24th birthday in 2011.
+    client.post(
+        "/life-events",
+        json={"person_id": grandparent["id"], "event_type": "marriage", "event_date": "1979-07-01"},
+    )
+    client.post(
+        "/life-events",
+        json={"person_id": parent["id"], "event_type": "marriage", "event_date": "2011-03-01"},
+    )
+    # A non-matching event for Parent, to confirm it doesn't get swept into the pattern.
+    client.post(
+        "/life-events",
+        json={"person_id": parent["id"], "event_type": "career_change", "event_date": "2020-01-01"},
+    )
+
+    resp = client.get("/family/timeline")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert len(body["events"]) == 3
+    assert [e["event_date"] for e in body["events"]] == ["1979-07-01", "2011-03-01", "2020-01-01"]
+
+    assert len(body["timing_patterns"]) == 1
+    pattern = body["timing_patterns"][0]
+    assert pattern["event_type"] == "marriage"
+    assert pattern["age_at_event"] == 24
+    assert set(pattern["people"]) == {"Grandparent", "Parent"}

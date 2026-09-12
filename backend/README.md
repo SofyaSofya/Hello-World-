@@ -167,6 +167,38 @@ generations, not flagging recurrence within one.
 curl http://127.0.0.1:8000/family/generational-cohorts
 ```
 
+### Family timeline (Step 8)
+
+Unlike the previous four Step 4-7 features, this needed an actual schema addition
+(`life_events` table) rather than just a new query -- Bell's "recurring at the same
+age across generations" pattern needs event type + date, not just birthdays.
+
+`POST /life-events` creates a life event for a person; `age_at_event` is computed
+server-side (completed years from the person's `birth_date`) and stored, not
+recomputed on read. `event_type` must be one of `family_roles.json`'s
+`family_timeline_rules.event_types` (`birth_of_child`, `marriage`, `divorce`,
+`death_of_parent`, `death_of_spouse`, `death_of_sibling`, `career_change`,
+`relocation`, `other`) -- a fixed, config-driven taxonomy rather than free text, so
+that cross-person matching means something. `event_date` cannot be before the
+person's `birth_date`.
+
+```bash
+curl -X POST http://127.0.0.1:8000/life-events \
+  -H "Content-Type: application/json" \
+  -d '{"person_id": 1, "event_type": "marriage", "event_date": "1979-07-01"}'
+```
+
+`GET /life-events` lists all events chronologically. `GET /family/timeline` returns
+the same chronological events plus `timing_patterns`: the same `event_type` at the
+exact same `age_at_event` for 2+ people. Matching is **exact-age only** -- there is
+no tolerance band (age 46 and 47 do not match) -- deliberately left unbuilt rather
+than shipped half-working; see `family_roles.json`'s notes if real data later shows
+near-miss patterns worth capturing.
+
+```bash
+curl http://127.0.0.1:8000/family/timeline
+```
+
 Interactive docs at `http://127.0.0.1:8000/docs`.
 
 ## Test

@@ -102,5 +102,21 @@
     "personal_point_weight": 2,
     "default_weight": 1,
     "notes": "Sun, Moon, and Ascendant are weighted double relative to the other 8 planets, since they conventionally dominate a chart's felt temperament more than e.g. Uranus's sign (which mostly reflects generation, not individual character -- the same generational-noise concern as planetary_thread_rules.planet_filtering). Ascendant is excluded entirely when houses_reliable is false (unknown birth time defaulted to noon), since Ascendant sign changes roughly every two hours and a noon-default chart's Ascendant carries no real signal. This weighting is a design decision, not an established astrological standard -- reasonable astrologers could weight this differently; revisit if family archetype output feels off."
+  },
+  "family_timeline_rules": {
+    "description": "Rules for the family timeline: life events by age per person, and cross-generational age-timing coincidences, per Lynn Bell's family timing/anniversary method.",
+    "event_types": [
+      "birth_of_child",
+      "marriage",
+      "divorce",
+      "death_of_parent",
+      "death_of_spouse",
+      "death_of_sibling",
+      "career_change",
+      "relocation",
+      "other"
+    ],
+    "minimum_occurrences_to_flag": 2,
+    "notes": "A timing pattern is flagged when 2+ family members experience the same event_type at the exact same age (completed years, computed from birth_date to event_date). This is exact-age matching only, not a tolerance band (e.g., age 46 vs 47 do not match) -- a fuzzy version was deliberately left unbuilt rather than shipped half-working; revisit with a documented tolerance rule if real family data shows near-miss patterns worth capturing. event_type is a fixed, config-driven taxonomy (not free text) so that cross-person matching is meaningful -- two people's free-text descriptions of 'similar' events would rarely match exactly."
   }
 }

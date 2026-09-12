@@ -29,6 +29,9 @@ class Person(Base):
     chart: Mapped[Chart] = relationship(
         back_populates="person", uselist=False, cascade="all, delete-orphan"
     )
+    life_events: Mapped[list[LifeEvent]] = relationship(
+        back_populates="person", cascade="all, delete-orphan"
+    )
 
 
 class Chart(Base):
@@ -73,3 +76,23 @@ class Relationship(Base):
     relationship_type: Mapped[str] = mapped_column(String, nullable=False)
     generation_offset: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class LifeEvent(Base):
+    """A life event for a person, per PROJECT_BRIEF.md Step 8. age_at_event is
+    computed server-side from the person's birth_date at creation time and stored
+    (not recomputed on every read) -- same caching rationale as Chart."""
+
+    __tablename__ = "life_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("people.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    event_date: Mapped[date] = mapped_column(Date, nullable=False)
+    age_at_event: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    person: Mapped[Person] = relationship(back_populates="life_events")
