@@ -12,6 +12,7 @@ from app.ancestral import (
     aggregate_ancestral_patterns,
     get_ancestral_pattern_houses,
 )
+from app.cohorts import PersonInput as CohortPersonInput, aggregate_generational_cohorts
 from app.db import get_db
 from app.elements import PersonInput as ElementPersonInput, aggregate_family_elements
 from app.ephemeris import DEFAULT_UNKNOWN_BIRTH_TIME, ChartCalculationError, longitude_to_sign_degree
@@ -20,15 +21,18 @@ from app.schemas import (
     AngleResponse,
     ChartRequest,
     ChartResponse,
+    CohortResponse,
     DEFAULT_GENERATION_OFFSET,
     FamilyElementsResponse,
     FamilyThreadsRequest,
     FamilyThreadsResponse,
+    GenerationalCohortsResponse,
     PersistedThreadsRequest,
     PersonAncestralPlacementsResponse,
     PersonCreate,
     PersonElementSummary,
     PersonResponse,
+    PlanetCohortsResponse,
     PlanetPlacementResponse,
     RecurringAncestralThemeResponse,
     RelationshipCreate,
@@ -387,5 +391,35 @@ def get_family_ancestral_patterns(db: Session = Depends(get_db)) -> AncestralPat
                 occurrence_count=t.occurrence_count,
             )
             for t in report.recurring_themes
+        ],
+    )
+
+
+@app.get("/family/generational-cohorts", response_model=GenerationalCohortsResponse)
+def get_family_generational_cohorts(db: Session = Depends(get_db)) -> GenerationalCohortsResponse:
+    """Groups persisted people by Uranus/Neptune/Pluto sign -- these move slowly
+    enough that sign-sharing approximates genealogical generation, per
+    PROJECT_BRIEF.md Step 7. A cohort of one person is meaningful output here
+    (unlike the thread detector): the point is comparing cohorts, not flagging
+    recurrence within one."""
+    people = db.query(models.Person).order_by(models.Person.id).all()
+    if not people:
+        raise HTTPException(status_code=422, detail="No persisted people to group into cohorts")
+
+    cohort_inputs = [
+        CohortPersonInput(name=person.name, planets=person.chart.planets) for person in people
+    ]
+    report = aggregate_generational_cohorts(cohort_inputs)
+
+    return GenerationalCohortsResponse(
+        cohorts_by_planet=[
+            PlanetCohortsResponse(
+                planet=planet_cohorts.planet,
+                cohorts=[
+                    CohortResponse(sign=c.sign, people=c.people) for c in planet_cohorts.cohorts
+                ],
+                distinct_cohort_count=planet_cohorts.distinct_cohort_count,
+            )
+            for planet_cohorts in report.cohorts_by_planet
         ],
     )

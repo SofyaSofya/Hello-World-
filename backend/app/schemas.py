@@ -247,3 +247,21 @@ class AncestralPatternReportResponse(BaseModel):
     )
     house_emphasis: dict[int, int]
     recurring_themes: list[RecurringAncestralThemeResponse]
+
+
+# --- Generational cohort lens (Step 7) --------------------------------------
+
+
+class CohortResponse(BaseModel):
+    sign: str
+    people: list[str]
+
+
+class PlanetCohortsResponse(BaseModel):
+    planet: str
+    cohorts: list[CohortResponse]
+    distinct_cohort_count: int
+
+
+class GenerationalCohortsResponse(BaseModel):
+    cohorts_by_planet: list[PlanetCohortsResponse]

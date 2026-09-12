@@ -212,3 +212,35 @@ def test_family_ancestral_patterns_excludes_unreliable_houses(db_session):
     body = resp.json()
     assert body["excluded_people"] == ["UnknownBirthTime"]
     assert {p["person"] for p in body["per_person"]} == {"Parent"}
+
+
+def test_family_generational_cohorts_requires_at_least_one_person(db_session):
+    resp = client.get("/family/generational-cohorts")
+    assert resp.status_code == 422
+
+
+def test_family_generational_cohorts_splits_grandparent_and_parent(db_session):
+    # Verified via direct calculate_chart(): 32 years apart is enough that
+    # Grandparent and Parent land in different signs for all three outer planets --
+    # Uranus (Cancer vs Sagittarius), Neptune (Libra vs Capricorn), Pluto (Leo vs
+    # Scorpio) -- so each planet should show 2 singleton cohorts.
+    _create_person(GRANDPARENT)
+    _create_person(PARENT)
+
+    resp = client.get("/family/generational-cohorts")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    by_planet = {pc["planet"]: pc for pc in body["cohorts_by_planet"]}
+    assert set(by_planet) == {"Uranus", "Neptune", "Pluto"}
+
+    expected_signs = {
+        "Uranus": {"Grandparent": "Cancer", "Parent": "Sagittarius"},
+        "Neptune": {"Grandparent": "Libra", "Parent": "Capricorn"},
+        "Pluto": {"Grandparent": "Leo", "Parent": "Scorpio"},
+    }
+    for planet, expected in expected_signs.items():
+        pc = by_planet[planet]
+        assert pc["distinct_cohort_count"] == 2
+        actual = {person: c["sign"] for c in pc["cohorts"] for person in c["people"]}
+        assert actual == expected

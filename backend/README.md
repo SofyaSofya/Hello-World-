@@ -150,6 +150,23 @@ placement is meaningless off a noon-default chart.
 curl http://127.0.0.1:8000/family/ancestral-patterns
 ```
 
+### Generational cohort lens (Step 7)
+
+`GET /family/generational-cohorts` groups persisted people by Uranus/Neptune/Pluto
+sign. These planets move slowly enough (84-248yr orbits) that sign-sharing
+approximates genealogical generation without needing to derive an actual generation
+number from the relationships graph -- grouping by sign *is* grouping by
+generation, per Sullivan's framework. Reuses the exact planet list from
+`family_roles.json`'s `planetary_thread_rules.planet_filtering.generational_planets`
+-- the same three planets excluded from the thread detector as generational noise
+are the signal this lens exists to surface. Unlike the thread detector, a cohort of
+one person is still meaningful output here: the point is comparing cohorts across
+generations, not flagging recurrence within one.
+
+```bash
+curl http://127.0.0.1:8000/family/generational-cohorts
+```
+
 Interactive docs at `http://127.0.0.1:8000/docs`.
 
 ## Test
